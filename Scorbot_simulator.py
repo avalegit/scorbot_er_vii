@@ -12,13 +12,14 @@ L1 = 358.5  # base to shoulder
 L2 = 300    # shoulder to elbow
 L3 = 350    # elbow to pitch axis
 L4 = 251    # pitch axis to gripper
+L5 = 50     # size of the gripper
 
 # Initial angle values
 # alpha, a, d, theta
 angles = [0,np.pi/4,np.pi/2,-np.pi/6,0]
 
 # angle increment for interaction
-angle_inc = np.pi/180*10
+angle_inc = np.pi/180*2
 
 # Initialize figure and plot
 fig = plt.figure()
@@ -27,13 +28,17 @@ ax = plt.axes(projection='3d')
 plt.rcParams['keymap.save'].remove('s')
 plt.rcParams['keymap.fullscreen'].remove('f')
 
-
+# to suppress scientific notation when printing float values
+np.set_printoptions(suppress=True)
 
 # Configure figure and plot
 def init_plot():
-    ax.set_xlim3d([-500, 500])
-    ax.set_ylim3d([-500, 500])
+    ax.set_xlim3d([-800, 800])
+    ax.set_ylim3d([-800, 800])
     ax.set_zlim3d([0, 1000])
+    plt.title('SCORBOT ER VII (commands: a/z, s/x, d/c, f/v, g/b)')
+    plt.xlabel("X axis")
+    plt.ylabel("Y axis")
 
 
 # Key press events
@@ -65,14 +70,8 @@ def key_pressed(event):
     
     ax.clear()   
 
-    # Initialize plot
-    init_plot()
-
-    # Update the arm
-    p, T = update_arm()
-
-    # Plot all joints
-    plot_arm(p)
+    # initialize plot, simulate the arm and update plot
+    simulate_and_plot()
 
 
 # set D-H parameters
@@ -97,12 +96,18 @@ def dh_matrix(alpha, a, d, theta):
 # Denavit-Hartenberg (D-H) convention 
 def get_transf(T, p, dh_params):
     print("D-H params:\n",dh_params)
-    for f in range(0,len(dh_params[:])-1):
+    for f in range(0,len(dh_params[:])):
         print("----------------")
         print("Transform from ",f, " to ",f+1)
         T = np.matmul(T,dh_matrix(dh_params[f,0], dh_params[f,1], dh_params[f,2], dh_params[f,3]))
-        print(T)
+        print(np.around(T,2))
         p[:,f+1] = np.matmul(T,np.array([0,0,0,1]))
+
+    # add 4 points to simualte the gripper
+    p = np.append(p, np.matmul(T,np.array([[0,0,0,0,0],[-L5,-L5,-L5,L5,L5],[0,L5,0,0,L5],[1,1,1,1,1]])),axis=1)
+
+    # Convert to the default frame of the manipulator
+    p = np.matmul(np.array([[0,-1,0,0],[1,0,0,0],[0,0,1,0],[0,0,0,1]]),p)
 
     return p
         
@@ -118,9 +123,7 @@ def update_arm():
     T = np.identity(4)
 
     # Tnitialize joints coordinates
-    p = np.vstack((np.zeros((3,5),dtype=np.float32),np.ones((1,5),dtype=np.float32)))   
-    
-    print("values of p",p)
+    p = np.vstack((np.zeros((3,6),dtype=np.float32),np.ones((1,6),dtype=np.float32)))   
     
     # set D-H parameters
     dh_params = set_dh_params(angles)
@@ -131,15 +134,11 @@ def update_arm():
     # Show points
     print("----------------")
     print("Points")
-    print(p)
+    print(np.around(p[:,0:5],3))
 
     return p, T
 
-
-def main():
-    # define key press event
-    fig.canvas.mpl_connect('key_press_event', key_pressed)
-
+def simulate_and_plot():
     # Initialize plot
     init_plot()
 
@@ -149,6 +148,13 @@ def main():
     # Plot all joints
     plot_arm(p)
 
+
+def main():
+    # define key press event
+    fig.canvas.mpl_connect('key_press_event', key_pressed)
+
+    # initialize plot, simulate the arm and update plot
+    simulate_and_plot()
 
 if __name__ == "__main__":
     main()
